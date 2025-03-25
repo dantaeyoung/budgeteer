@@ -1,7 +1,28 @@
-import { Dropbox } from 'dropbox'
+import { Dropbox, DropboxResponse } from 'dropbox'
+import type { files } from 'dropbox'
 
 const DROPBOX_REDIRECT_URI = window.location.origin // This will be your app's URL
 const BUDGET_FILE_PATH = '/budgeteer-data.json'
+
+interface DropboxAuthResponse {
+  result: {
+    access_token: string
+  }
+}
+
+// The actual response type from Dropbox includes more fields
+interface DropboxFileMetadata extends files.FileMetadata {
+  fileBlob: Blob
+}
+
+interface DropboxAuth {
+  getAuthenticationUrl: (redirectUri: string) => string
+  getAccessTokenFromCode: (redirectUri: string, code: string) => Promise<DropboxAuthResponse>
+}
+
+interface DropboxWithAuth extends Dropbox {
+  auth: DropboxAuth
+}
 
 export class DropboxService {
   private dbx: Dropbox | null = null
@@ -33,20 +54,22 @@ export class DropboxService {
 
   getAuthUrl(): string {
     if (!this.appKey) throw new Error('Dropbox App Key not set')
-    const dbx = new Dropbox({ clientId: this.appKey })
+    const dbx = new Dropbox({ clientId: this.appKey }) as DropboxWithAuth
     return dbx.auth.getAuthenticationUrl(DROPBOX_REDIRECT_URI)
   }
 
   async handleRedirect(code: string): Promise<void> {
     if (!this.appKey) throw new Error('Dropbox App Key not set')
-    const dbx = new Dropbox({ clientId: this.appKey })
+    const dbx = new Dropbox({ clientId: this.appKey }) as DropboxWithAuth
     const response = await dbx.auth.getAccessTokenFromCode(DROPBOX_REDIRECT_URI, code)
-    this.accessToken = response.result.access_token
-    localStorage.setItem('dropbox_access_token', this.accessToken)
-    this.dbx = new Dropbox({ accessToken: this.accessToken })
+    if (response.result.access_token) {
+      this.accessToken = response.result.access_token
+      localStorage.setItem('dropbox_access_token', this.accessToken)
+      this.dbx = new Dropbox({ accessToken: this.accessToken })
+    }
   }
 
-  async saveData(data: any): Promise<void> {
+  async saveData(data: unknown): Promise<void> {
     if (!this.dbx) throw new Error('Not authenticated with Dropbox')
 
     try {
@@ -65,21 +88,23 @@ export class DropboxService {
     }
   }
 
-  async loadData(): Promise<any> {
+  async loadData(): Promise<unknown> {
     if (!this.dbx) throw new Error('Not authenticated with Dropbox')
 
     try {
       // Download from Dropbox
-      const response = await this.dbx.filesDownload({ path: BUDGET_FILE_PATH })
+      const response = (await this.dbx.filesDownload({
+        path: BUDGET_FILE_PATH,
+      })) as DropboxResponse<DropboxFileMetadata>
 
       // Read the file content
-      const fileBlob = (response.result as any).fileBlob
+      const fileBlob = response.result.fileBlob
       const text = await new Response(fileBlob).text()
 
       // Parse JSON
       return JSON.parse(text)
-    } catch (error: any) {
-      if (error?.status === 409) {
+    } catch (error) {
+      if (error instanceof Error && 'status' in error && error.status === 409) {
         // File doesn't exist yet
         return null
       }

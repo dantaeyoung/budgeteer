@@ -69,7 +69,7 @@ export const useBudgetStore = defineStore('budget', () => {
       const state: BudgetState = JSON.parse(stored)
       dailyBudget.value = state.dailyBudget
       transactions.value = state.transactions
-      lastSyncTime.value = state.lastSync || null
+      lastSyncTime.value = state.lastSync ?? null
     }
   }
 
@@ -84,7 +84,7 @@ export const useBudgetStore = defineStore('budget', () => {
       }
 
       await dropbox.saveData(state)
-      lastSyncTime.value = state.lastSync
+      lastSyncTime.value = state.lastSync ?? null
     } catch (error) {
       console.error('Failed to sync with Dropbox:', error)
     } finally {
@@ -98,11 +98,11 @@ export const useBudgetStore = defineStore('budget', () => {
       isLoading.value = true
 
       if (isAuthenticated.value) {
-        const data = await dropbox.loadData()
+        const data = (await dropbox.loadData()) as BudgetState | null
         if (data) {
           dailyBudget.value = data.dailyBudget
           transactions.value = data.transactions
-          lastSyncTime.value = data.lastSync
+          lastSyncTime.value = data.lastSync ?? null
           await saveToLocalStorage() // Update local storage with Dropbox data
           return
         }
