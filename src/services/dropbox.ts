@@ -55,7 +55,12 @@ export class DropboxService {
   getAuthUrl(): string {
     if (!this.appKey) throw new Error('Dropbox App Key not set')
     const dbx = new Dropbox({ clientId: this.appKey }) as DropboxWithAuth
-    return dbx.auth.getAuthenticationUrl(DROPBOX_REDIRECT_URI)
+    const authUrl = dbx.auth.getAuthenticationUrl(DROPBOX_REDIRECT_URI)
+    // Ensure we're returning a string, not a Promise
+    if (typeof authUrl === 'string') {
+      return authUrl
+    }
+    throw new Error('Invalid authentication URL returned from Dropbox')
   }
 
   async handleRedirect(code: string): Promise<void> {

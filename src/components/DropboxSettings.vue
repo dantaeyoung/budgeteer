@@ -1,15 +1,27 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useBudgetStore } from '@/stores/budget'
 
 const store = useBudgetStore()
 const appKey = ref('')
 const showAppKey = ref(false)
 
+// Handle OAuth redirect
+onMounted(() => {
+  const urlParams = new URLSearchParams(window.location.search)
+  const code = urlParams.get('code')
+  if (code) {
+    store.handleDropboxRedirect(code)
+    // Clean up the URL
+    window.history.replaceState({}, document.title, window.location.pathname)
+  }
+})
+
 function connectDropbox() {
   if (appKey.value) {
     store.setDropboxAppKey(appKey.value)
-    window.location.href = store.getDropboxAuthUrl()
+    const authUrl = store.getDropboxAuthUrl()
+    window.location.href = authUrl
   }
 }
 
